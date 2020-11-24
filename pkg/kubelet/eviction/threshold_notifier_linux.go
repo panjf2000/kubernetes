@@ -74,9 +74,12 @@ func NewCgroupNotifier(path, attribute string, threshold int64) (CgroupNotifier,
 	}()
 	epfd, err = unix.EpollCreate1(unix.EPOLL_CLOEXEC)
 	// epoll_create1() may fail either because it's not implemented (in an old kernel)
-	// or it doesn't recognize/understand the EPOLL_CLOEXEC flag, in which case it ought to
+	// or it doesn't recognize/understand the EPOLL_CLOEXEC flag, in which case we ought to
 	// fall back to the conventional epoll_create().
 	if err != nil {
+		// Initialize the epoll kernel queue with specified size,
+		// this size argument will be ignored anyway (since Linux 2.6.8),
+		// but it must be a positive value.
 		if epfd, err = unix.EpollCreate(1024); err != nil {
 			return nil, err
 		}
