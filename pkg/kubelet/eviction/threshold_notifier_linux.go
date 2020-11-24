@@ -58,7 +58,7 @@ func NewCgroupNotifier(path, attribute string, threshold int64) (CgroupNotifier,
 		return nil, err
 	}
 	defer unix.Close(controlfd)
-	eventfd, err = unix.Eventfd(0, unix.EFD_CLOEXEC)
+	eventfd, err = unix.Eventfd(0, unix.EFD_NONBLOCK|unix.EFD_CLOEXEC)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +73,14 @@ func NewCgroupNotifier(path, attribute string, threshold int64) (CgroupNotifier,
 		}
 	}()
 	epfd, err = unix.EpollCreate1(unix.EPOLL_CLOEXEC)
+	// epoll_create1() may fail either because it's not implemented (in an old kernel)
+	// or it doesn't recognize/understand the EPOLL_CLOEXEC flag, in which case it ought to
+	// fall back to the conventional epoll_create().
 	if err != nil {
-		return nil, err
+		if epfd, err = unix.EpollCreate(1024); err != nil {
+			return nil, err
+		}
+		unix.FcntlInt(uintptr(epfd), unix.F_SETFD, unix.FD_CLOEXEC)
 	}
 	if epfd < 0 {
 		err = fmt.Errorf("EpollCreate1 call failed")
